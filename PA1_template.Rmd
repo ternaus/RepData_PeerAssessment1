@@ -1,25 +1,133 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
+title: 'Reproducible Research: Peer Assessment 1'
+output:
   html_document:
-    keep_md: true
+    keep_md: yes
+  pdf_document: default
 ---
 
 
 ## Loading and preprocessing the data
-
+```{r}
+library(ggplot2)
+#read data from the zipped file
+data <- read.csv(unz("activity.zip", "activity.csv"))
+#drop rows with NA values
+data.no.na <- data[!is.na(data$steps), ]
+```
 
 
 ## What is mean total number of steps taken per day?
+```{r}
+#split data for each day
+data.splitted.date <- split(data.no.na$steps, factor(data.no.na$date))
+#find total number of steps for each day
+total.per.day <- sapply(data.splitted.date, sum)
+#caluclate mean and median number of steps per day
+mean.steps.per.day <- mean(total.per.day)
+median.steps.per.day <- median(total.per.day)
+```
+Mean number of steps per day is equal to $`r mean.steps.per.day`$.
+Median number of steps per day is equal to $`r median.steps.per.day`.$
 
+```{r}
+#Plot histogram of the total number of steps
+qplot(total.per.day, geom="histogram", binwidth=2000, xlab="Number of steps per day")
+```
 
 
 ## What is the average daily activity pattern?
+```{r}
+#split data for time intervals
+data.splitted.interval <- split(data.no.na$steps, factor(data.no.na$interval))
+#caluclate mean and meadian number of steps per time interval across different days
+mean.steps.per.interval <- sapply(data.splitted.interval, mean)
+median.steps.per.interval <- sapply(data.splitted.interval, median)
 
+#time interval with maximum average number if steps
+index.max.steps <- as.numeric(which(mean.steps.per.interval == max(mean.steps.per.interval)))
 
+max.interval <- unique(data$interval)[index.max.steps]
+
+ggplot() + 
+  geom_line(aes(unique(data$interval), mean.steps.per.interval)) + 
+  xlab("Time interval") + 
+  ylab("Mean of number of steps per interval") +
+  geom_vline(xintercept=unique(data.no.na$interval)[index.max.steps], col="red")
+```
+
+Interval with maximum number of steps starts at $`r max.interval`$ and continues for next $5$ seconds.
 
 ## Imputing missing values
 
+NA values filled with mean over the time intervals averaged over rest of the days.
 
+```{r}
+#number of rows with missing values:
+rows.with.na <- sum(complete.cases(data) == FALSE)
+
+#replace missed values with mean value per corresponding interval over all days
+data.filled <- data
+for (i in 1:nrow(data)) {  
+  row <- data[i, ]      
+  if (is.na(row["steps"])) {    
+    index.rows <- which(unique(data.no.na$interval)==as.numeric(row["interval"]))
+    new.steps.value <- as.numeric(mean.steps.per.interval[index.rows])
+    data.filled$steps[i] <- new.steps.value    
+    }
+  }
+
+#split data for each day
+data.filled.splitted.date <- split(data.filled$steps, factor(data.filled$date))
+#find total number of steps for each day
+total.filled.per.day <- sapply(data.filled.splitted.date, sum)
+#caluclate mean and median number of steps per day
+mean.filled.steps.per.day <- mean(total.filled.per.day)
+median.filled.steps.per.day <- median(total.filled.per.day)
+```
+Mean number of steps per day is equal to $`r mean.steps.per.day`$.
+Median number of steps per day is equal to $`r median.steps.per.day`.$
+
+```{r}
+#Plot histogram of the total number of steps
+library(gridExtra)
+plot1 <- qplot(total.filled.per.day, geom="histogram", binwidth=2000, xlab="Number of steps per day, where NA filled")
+plot2 <- qplot(total.per.day, geom="histogram", binwidth=2000, xlab="Number of steps per day, where NA dropped")
+grid.arrange(plot1, plot2, nrow=2)
+```
+
+Total number of rows with NA is $`r rows.with.na`$. After filling na values for the averages for 
+corresponding period we get total mean value `r mean.filled.steps.per.day`, median `r median.filled.steps.per.day`. As we can see, mean, median and histragram for the total of number of steps per day are almost identical to the unfilled values.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+#add column to the dataframe that corresponds to the day of the week
+data.filled["weekday"] <- weekdays(as.Date(data.filled$date))
+#add column to the dataframe that will tell if it is weekend ot not
+data.filled["weekend"] <- data.filled$weekday %in% c("Saturday", "Sunday")
+
+#split data into weekend and weekdays variables
+weekend <- data.filled[data.filled$weekend, ]
+weekday <- data.filled[!data.filled$weekend, ]
+
+#split data for time intervals
+mean.weekend <- sapply(split(weekend$steps, factor(weekend$interval)), mean)
+mean.weekday <- sapply(split(weekday$steps, factor(weekday$interval)), mean)
+
+plot1 <- qplot(unique(weekend$interval), 
+               mean.weekend, 
+               xlab="Time interval", 
+               ylab=ylab("Mean of number of steps"), 
+               geom="line",
+               main="Weekend")
+
+plot2 <- qplot(unique(weekday$interval), 
+               mean.weekday, 
+               xlab="Time interval", 
+               ylab=ylab("Mean of number of steps"), 
+               geom="line",
+               main="Weekday")
+grid.arrange(plot1, plot2, nrow=2)
+```
+
+Activities on the weekday and weekend look different.
